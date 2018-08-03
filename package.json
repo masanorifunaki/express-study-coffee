@@ -9,9 +9,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "body-parser": "^1.18.3",
     "coffee": "^4.2.0",
     "coffeescript": "^2.3.1",
     "express": "^4.16.3",
+    "mongoose": "^5.2.6",
     "pug": "^2.0.3"
   }
 }
