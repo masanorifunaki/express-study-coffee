@@ -5,13 +5,26 @@ bodyParser = require 'body-parser'
 mongoose = require 'mongoose'
 fileUpload = require 'express-fileupload'
 passport = require 'passport'
-LocalStrategy = require('passport-local').Strategy
+GitHubStrategy = require('passport-github2').Strategy
 session = require 'express-session'
+MongoStore = require('connect-mongo')(session)
 
 User = require './schema/User.coffee'
 Message = require './schema/Message.coffee'
 
 app = express()
+
+gitHubConfig =
+  clientID: process.env.GITHUB_CLIENT_ID
+  clientSecret: process.env.GITHUB_CLIENT_SECRET
+  callbackURL: process.env.CALL_BACK_URL || 'http://localhost:3000/auth/github/callback'
+
+passport.serializeUser (user, done) ->
+  done null, user
+
+passport.deserializeUser (id, done) ->
+  User.findOne _id: id._id, (err, user) ->
+    done null, user
 
 mongoose.connect 'mongodb://localhost:27017/people',{ useNewUrlParser: true}, (err) ->
   if err
@@ -21,7 +34,20 @@ mongoose.connect 'mongodb://localhost:27017/people',{ useNewUrlParser: true}, (e
 
 app.use bodyParser()
 
-app.use session { secret: 'HogeFuga'}
+app.use session
+  secret: 'HogeFuga'
+  # 変更があった場合のみセッションを更新する
+  resave: false
+  # セッションに何か保存されるまでストレージに保存しない
+  saveUninitialized: false
+  store: new MongoStore
+    mongooseConnection: mongoose.connection
+#    url: 'mongodb://localhost:27017/people'
+    db: 'session'
+    ttl: 14 * 24 * 60 * 60
+#  cookie:
+#    secure: true
+
 app.use passport.initialize()
 app.use passport.session()
 
@@ -31,85 +57,68 @@ app.set 'view engine', 'pug'
 app.use '/image', express.static path.join __dirname, 'image'
 app.use '/avatar', express.static path.join __dirname, 'avatar'
 
+passport.use new GitHubStrategy(gitHubConfig, (token, tokenSecret, profile, done) ->
+  User.findOne github_profile_id: profile.id, (err, user) ->
+    if err
+      done err
+
+    else if !user
+      _user =
+        username: profile.username
+        github_profile_id: profile.id
+        avatar_path: profile._json.avatar_url
+
+      newUser = new User _user
+      newUser.save (err) ->
+        throw err if err
+        done null, newUser
+
+    else
+      done null, user
+)
+
 app.get '/', (req, res, next) ->
   Message.find {}, (err, msgs) ->
     throw err if err
     data =
       messages: msgs
-      user: if req.session && req.session.user then req.session.user else null
+      user: if req.user then req.user else null
     res.render 'index', data
 
-app.get '/signin', (req, res, next) ->
-  res.render 'signin'
+app.get '/auth/github', passport.authenticate('github', scope: ['user:email']), (req, res) ->
 
-app.post '/signin', fileUpload(), (req, res, next) ->
-  avatar = req.files.avatar
-  avatar_path = "./avatar/#{avatar.name}"
-  avatar.mv "#{avatar_path}", (err) ->
-    throw err if err
-    newUser = new User
-      username: req.body.username
-      password: req.body.password
-      avatar_path: avatar_path
-
-    newUser.save (err) ->
-      throw err if err
-      res.redirect '/'
-
-app.get '/login', (req, res, next) ->
-  res.render 'login'
-
-app.post '/login', passport.authenticate('local'), (req, res, next) ->
-  User.findOne {_id: req.session.passport.user }, (err, user) ->
-    res.redirect '/login' if err || !req.session
-
-    req.session.user =
-      username: user.username
-      avatar_path: user.avatar_path
-
-    res.redirect '/'
-
-passport.use new LocalStrategy((username, password, done) ->
-  User.findOne {username: username}, (err, user) ->
-    done err if err
-    done null, false, {message: 'Incorrect username.'} if !user
-    done null, false, {message: 'Incorrect password.'} if user.password != password
-    done null, user
-)
-
-passport.serializeUser (user, done) ->
-  done null, user._id
-
-passport.deserializeUser (id, done) ->
-  User.findOne { _id: id }, (err, user) ->
-    done err, user
+app.get '/auth/github/callback', passport.authenticate('github', { failureRedirect: '/' }), (req, res) -> res.redirect '/'
 
 app.get '/update', (req, res, next) ->
   res.render 'update'
 
 app.post '/update', fileUpload(), (req, res, next) ->
-
   if req.files && req.files.image
+
     image_path = "./image/#{req.files.image.name}"
+
     req.files.image.mv image_path, (err) ->
       throw err if err
+
       newMessage = new Message
-        username: req.body.username
+        username: req.username
+        avatar_path: req.avatar_path
         message: req.body.message
         image_path: image_path
 
       newMessage.save (err) ->
         throw err if err
         res.redirect '/'
+
   else
     newMessage = new Message
-      username: req.body.username
+      username: req.user.username
+      avatar_path: req.user.avatar_path
       message: req.body.message
 
     newMessage.save (err) ->
       throw err if err
       res.redirect '/'
-
 
 server = http.createServer(app)
 port = 3000
