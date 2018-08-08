@@ -8,6 +8,8 @@ passport = require 'passport'
 GitHubStrategy = require('passport-github2').Strategy
 session = require 'express-session'
 MongoStore = require('connect-mongo')(session)
+helmet = require 'helmet'
+csrf = require 'csurf'
 
 log = require './lib/error_logger'
 
@@ -15,6 +17,8 @@ User = require './schema/User.coffee'
 Message = require './schema/Message.coffee'
 
 app = express()
+
+csrfProtection = csrf()
 
 gitHubConfig =
   clientID: process.env.GITHUB_CLIENT_ID
@@ -34,6 +38,7 @@ mongoose.connect 'mongodb://localhost:27017/people',{ useNewUrlParser: true}, (e
   else
     console.log 'success!'
 
+app.use helmet()
 app.use bodyParser()
 
 app.use session
@@ -92,10 +97,12 @@ app.get '/auth/github', passport.authenticate('github', scope: ['user:email']), 
 
 app.get '/auth/github/callback', passport.authenticate('github', { failureRedirect: '/' }), (req, res) -> res.redirect '/'
 
-app.get '/update', (req, res, next) ->
-  res.render 'update'
+app.get '/update', csrfProtection, (req, res, next) ->
+  data =
+    csrf: req.csrfToken()
+  res.render 'update', data
 
-app.post '/update', fileUpload(), (req, res, next) ->
+app.post '/update', fileUpload(), csrfProtection, (req, res, next) ->
   if req.files && req.files.image
 
     image_path = "./image/#{req.files.image.name}"
@@ -132,7 +139,11 @@ app.use (req, res, next) ->
 
 app.use (err, req, res, next) ->
   log.error err
-  res.status err.status || 500
+  switch err
+    when err.code == 'EBADCSRFTOKEN'
+      res.status 403
+    else
+      res.status err.status || 500
   data =
     message: err.message
     status: err.status || 500
