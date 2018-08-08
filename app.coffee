@@ -9,6 +9,8 @@ GitHubStrategy = require('passport-github2').Strategy
 session = require 'express-session'
 MongoStore = require('connect-mongo')(session)
 
+log = require './lib/error_logger'
+
 User = require './schema/User.coffee'
 Message = require './schema/Message.coffee'
 
@@ -78,6 +80,7 @@ passport.use new GitHubStrategy(gitHubConfig, (token, tokenSecret, profile, done
 )
 
 app.get '/', (req, res, next) ->
+
   Message.find {}, (err, msgs) ->
     throw err if err
     data =
@@ -119,6 +122,21 @@ app.post '/update', fileUpload(), (req, res, next) ->
     newMessage.save (err) ->
       throw err if err
       res.redirect '/'
+
+app.use (req, res, next) ->
+  err = new Error 'Not Found'
+  err.status = 404
+  data =
+    status: err.status
+  res.render 'error', data
+
+app.use (err, req, res, next) ->
+  log.error err
+  res.status err.status || 500
+  data =
+    message: err.message
+    status: err.status || 500
+  res.render 'error', data
 
 server = http.createServer(app)
 port = 3000
