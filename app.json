@@ -1,0 +1,7 @@
+{
+  "name": "express-study-coffee",
+  "description": "express-study-coffee",
+  "logo": "",
+  "keywords": ["node"],
+  "image": "heroku/nodejs"
+}

@@ -1,5 +1,10 @@
 node_modules/
 .idea/
-image/*
-avatar/*
-log/
+*.jpg
+*.png
+*.jpeg
+*.logs
+._*
+npm-debug.logs*
+.npm
+
