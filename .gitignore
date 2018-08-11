@@ -2,7 +2,6 @@ node_modules/
 .idea/
 *.jpg
 *.png
-*.jpeg
 *.logs
 ._*
 npm-debug.logs*
