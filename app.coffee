@@ -121,16 +121,16 @@ app.get '/update', csrfProtection, (req, res, next) ->
 app.post '/update',checkAuth, fileUpload(), csrfProtection, (req, res, next) ->
   if req.files && req.files.image
 
-    image_path = "/image/#{req.files.image.name}"
+    img = req.files.image
 
-    req.files.image.mv '/image', (err) ->
+    req.files.image.mv './image/' + img.name, (err) ->
       throw err if err
 
       newMessage = new Message
         username: req.user.username
         avatar_path: req.user.avatar_path
         message: req.body.message
-        image_path: image_path
+        image_path: '/image/' + img.name
 
       newMessage.save (err) ->
         throw err if err
