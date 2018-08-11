@@ -35,7 +35,7 @@ passport.deserializeUser (id, done) ->
   User.findOne _id: id._id, (err, user) ->
     done null, user
 
-mongoose.connect 'mongodb://localhost:27017/people',{ useNewUrlParser: true}, (err) ->
+mongoose.connect process.env. MONGODB_URI || 'mongodb://localhost:27017/people',{ useNewUrlParser: true}, (err) ->
   if err
     console.error err
   else
@@ -167,5 +167,5 @@ app.use (err, req, res, next) ->
 
 server = http.createServer(app)
 port = 3000
-server.listen port, ->
+server.listen process.env.PORT || port, ->
   console.info "Listening on #{port}"
