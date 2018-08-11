@@ -1,0 +1,11 @@
+nav#header
+  .update_link
+    a(href='update')
+      span.nav_item 投稿する
+  if user
+    img(src=user.avatar_path).avatar
+    a(href='/logout')
+      span.nav_item #{user.username}
+  else
+    a(href="/auth/github")
+      span.nav_item ログイン

@@ -10,6 +10,9 @@ session = require 'express-session'
 MongoStore = require('connect-mongo')(session)
 helmet = require 'helmet'
 csrf = require 'csurf'
+moment = require 'moment-timezone'
+
+moment.tz.setDefault 'Asia/Tokyo'
 
 log = require './lib/error_logger'
 
@@ -38,6 +41,12 @@ mongoose.connect 'mongodb://localhost:27017/people',{ useNewUrlParser: true}, (e
   else
     console.log 'success!'
 
+checkAuth = (req, res, next) ->
+  if req.isAuthenticated()
+    next()
+  else
+    res.redirect '/auth/github'
+
 app.use helmet()
 app.use bodyParser()
 
@@ -63,6 +72,7 @@ app.set 'view engine', 'pug'
 
 app.use '/image', express.static path.join __dirname, 'image'
 app.use '/avatar', express.static path.join __dirname, 'avatar'
+app.use '/css', express.static path.join __dirname, 'css'
 
 passport.use new GitHubStrategy(gitHubConfig, (token, tokenSecret, profile, done) ->
   User.findOne github_profile_id: profile.id, (err, user) ->
@@ -91,7 +101,12 @@ app.get '/', (req, res, next) ->
     data =
       messages: msgs
       user: if req.user then req.user else null
+      moment: moment
     res.render 'index', data
+
+app.get '/logout', (req, res, next) ->
+  req.logout()
+  res.redirect '/'
 
 app.get '/auth/github', passport.authenticate('github', scope: ['user:email']), (req, res) ->
 
@@ -100,9 +115,10 @@ app.get '/auth/github/callback', passport.authenticate('github', { failureRedire
 app.get '/update', csrfProtection, (req, res, next) ->
   data =
     csrf: req.csrfToken()
+    user: req.user
   res.render 'update', data
 
-app.post '/update', fileUpload(), csrfProtection, (req, res, next) ->
+app.post '/update',checkAuth, fileUpload(), csrfProtection, (req, res, next) ->
   if req.files && req.files.image
 
     image_path = "./image/#{req.files.image.name}"
@@ -111,8 +127,8 @@ app.post '/update', fileUpload(), csrfProtection, (req, res, next) ->
       throw err if err
 
       newMessage = new Message
-        username: req.username
-        avatar_path: req.avatar_path
+        username: req.user.username
+        avatar_path: req.user.avatar_path
         message: req.body.message
         image_path: image_path
 
