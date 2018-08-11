@@ -123,7 +123,7 @@ app.post '/update',checkAuth, fileUpload(), csrfProtection, (req, res, next) ->
 
     image_path = "/image/#{req.files.image.name}"
 
-    req.files.image.mv image_path, (err) ->
+    req.files.image.mv './image/', (err) ->
       throw err if err
 
       newMessage = new Message
