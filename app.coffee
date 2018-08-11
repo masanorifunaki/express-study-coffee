@@ -121,7 +121,7 @@ app.get '/update', csrfProtection, (req, res, next) ->
 app.post '/update',checkAuth, fileUpload(), csrfProtection, (req, res, next) ->
   if req.files && req.files.image
 
-    image_path = "./image/#{req.files.image.name}"
+    image_path = "/image/#{req.files.image.name}"
 
     req.files.image.mv image_path, (err) ->
       throw err if err
